@@ -14,7 +14,7 @@ Before running the script, you need to:
 1. First, clone this repository from GitHub:
 
 ```bash
-git clone https://github.com/your-username/telegram-media-downloader.git
+git clone https://github.com/ZeroParadoxHome/Self-Destructing-Media-Downloader.git
 ```
 
 2. Then, navigate to the project directory and install the required packages using the "requirements.txt" file:
