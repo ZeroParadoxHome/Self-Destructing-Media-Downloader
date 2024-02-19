@@ -2,15 +2,25 @@
 from telethon import TelegramClient, events, sync
 import asyncio
 import logging
-import re
+import json
+import os
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-api_id = input("Enter your API_ID: ")
-api_hash = input("Enter your API_Hash: ")
+SETTINGS_FILE = "settings.json"
+if os.path.exists(SETTINGS_FILE):
+    with open(SETTINGS_FILE, "r") as file:
+        settings = json.load(file)
+    api_id = settings.get("api_id")
+    api_hash = settings.get("api_hash")
+else:
+    api_id = input("Enter your API_ID: ")
+    api_hash = input("Enter your API_Hash: ")
+    with open(SETTINGS_FILE, "w") as file:
+        json.dump({"api_id": api_id, "api_hash": api_hash}, file)
 
 client = TelegramClient("H0lyFanz", api_id, api_hash).start()
 
