@@ -18,7 +18,7 @@ if os.path.exists(SETTINGS_FILE):
     api_hash = settings.get("api_hash")
 else:
     api_id = input("Enter your API_ID: ")
-    api_hash = input("Enter your API_Hash: ")
+    api_hash = input("Enter your API_HASH: ")
     with open(SETTINGS_FILE, "w") as file:
         json.dump({"api_id": api_id, "api_hash": api_hash}, file)
 
