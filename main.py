@@ -37,7 +37,7 @@ async def downloader(event):
         await client.send_file("me", result, caption="Downloaded by @H0lyFanz")
 
 
-@client.on(events.NewMessage(pattern=r"بصبر دان (بشه|شه)", func=lambda e: e.is_reply))
+@client.on(events.NewMessage(pattern=r"بصبر دانلود (بشه|شه)", func=lambda e: e.is_reply))
 async def get_image(event):
     me = await client.get_me()
     if event.sender_id == me.id:
