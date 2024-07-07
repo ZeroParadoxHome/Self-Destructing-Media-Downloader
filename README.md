@@ -31,7 +31,7 @@ pip install -r requirements.txt
 To run the script, use the following command:
 
 ```bash
-python SDMD.py
+python TSDMD.py
 ```
 
 The script will prompt you to enter your API_ID and API_HASH. After entering these values, the script will start running.
