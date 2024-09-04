@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import random
-import re
+import string
 import time
 import zipfile
 import aiofiles
@@ -143,15 +143,17 @@ async def handle_files(event):
                 return f"The directory {directory} does not exist."
             files_list = ""
             for root, dirs, files in os.walk(directory):
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
                 files_list += f"Directory: {root}\n"
                 # if dirs:
                 #     for dir_name in dirs:
                 #         files_list += (
-                #             f"    Subdirectory: {os.path.join(root, dir_name)}\n"
+                #             f"  Subdirectory: {os.path.join(root, dir_name)}\n"
                 #         )
                 if files:
                     for file_name in files:
-                        files_list += f"    File: {os.path.join(root, file_name)}\n"
+                        if not file_name.startswith("."):
+                            files_list += f"  File: {os.path.join(root, file_name)}\n"
             return files_list
 
         files_list = list_files_and_folders(".")
@@ -273,12 +275,16 @@ async def handle_zip(event):
         await event.respond(f"Error in creating zip file: {str(e)}")
 
 
-# Function to sanitize folder names to make them compatible with the file system
-def sanitize_folder_name(name):
-    sanitized_name = re.sub(r'[<>:"/\\|?*]', "_", name)
-    sanitized_name = sanitized_name.strip()
-    # sanitized_name = sanitized_name[:255]
-    return sanitized_name
+# Initialize an iterator for letters
+letters = iter(string.ascii_uppercase)
+
+
+# Function to get the next letter in the sequence
+def get_next_letter():
+    try:
+        return next(letters)
+    except StopIteration:
+        return None
 
 
 # Automatically download received media files.
@@ -286,11 +292,12 @@ async def downloader(event):
     me = await client.get_me()
     if event.sender_id != me.id:
         sender = await event.get_sender()
-        first_name = sender.first_name if sender.first_name else "None"
         username = sender.username if sender.username else "None"
         user_id = sender.id if sender.id else "None"
-        user_folder_name = f"{first_name} - @{username} - {user_id}"
-        user_folder_name = sanitize_folder_name(user_folder_name)
+        letter = get_next_letter()
+        if letter is None:
+            letter = "Unknown"
+        user_folder_name = f"{letter} - @{username} - {user_id}"
         user_folder_path = os.path.join(all_media_dir, user_folder_name)
         if not os.path.exists(user_folder_path):
             try:
