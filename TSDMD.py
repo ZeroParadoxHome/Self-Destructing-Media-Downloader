@@ -16,10 +16,6 @@ from telethon import TelegramClient, events
 
 
 # Define and create necessary directories
-logs_dir = "Logs"
-if not os.path.exists(logs_dir):
-    os.makedirs(logs_dir)
-
 all_media_dir = "Media"
 if not os.path.exists(all_media_dir):
     os.makedirs(all_media_dir)
