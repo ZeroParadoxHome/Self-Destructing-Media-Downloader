@@ -153,7 +153,7 @@ async def handle_files(event):
                 if files:
                     for file_name in files:
                         if not file_name.startswith("."):
-                            files_list += f"    File: {os.path.join(root, file_name)}\n"
+                            files_list += f"File: {os.path.join(root, file_name)}\n"
             return files_list
 
         files_list = list_files_and_folders(".")
