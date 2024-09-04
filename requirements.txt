@@ -1,3 +1,4 @@
 telethon
-rich
+aiohttp
 aiofiles
+rich
