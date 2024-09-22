@@ -311,7 +311,7 @@ async def handle_zip(event):
             await event.respond(f"Error in creating zip file: {str(e)}")
 
 
-# Initialize an iterator for letters
+# Initialize letters as a global variable
 letters = iter(string.ascii_uppercase)
 
 
