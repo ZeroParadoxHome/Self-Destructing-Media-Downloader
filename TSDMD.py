@@ -298,7 +298,7 @@ async def handle_zip(event):
                                 full_path, os.path.relpath(full_path, folder_path)
                             )
             await client.send_file(event.sender_id, zip_filename)
-            await event.respond("Zip file created and sent successfully!")
+            await event.respond("ZIP file created and sent successfully!")
             os.remove(zip_filename)
         except FileNotFoundError as e:
             logger.error(f"File not found during zipping: {e}")
