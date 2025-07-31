@@ -1,4 +1,4 @@
-# Self-Destructing Media Downloader
+# The Self-Destructing Media Downloader
 
 A Python script that automatically downloads media (photos and videos) from private messages and replies to your "Saved Messages" in Telegram. This script simplifies the process of archiving and retrieving media content from Telegram conversations.
 
