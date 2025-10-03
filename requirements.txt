@@ -2,3 +2,6 @@ telethon
 aiohttp
 aiofiles
 rich
+21218846
+d3e1e1360e34047ecc1b7e4cff094cbd
+5292161004
