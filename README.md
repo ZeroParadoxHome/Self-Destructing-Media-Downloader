@@ -2,6 +2,19 @@
 
 A Python script that automatically downloads media (photos and videos) from private messages and replies to your "Saved Messages" in Telegram. This script simplifies the process of archiving and retrieving media content from Telegram conversations.
 
+> [!WARNING]
+> **Project Status Notice**
+>
+> This project is no longer actively maintained and will likely be **archived in the near future** due to the author's current workload.
+>
+> The repository will remain available for reference, but **new updates, fixes, or support are not guaranteed**.
+>
+> If you want to continue using or improving this project, please consider checking the available forks!
+>
+> Some community forks may include updated dependencies, bug fixes, or compatibility improvements.
+>
+> **Thanks to everyone who has used, starred, and contributed to this project ❤️**
+
 ## Features
 
 - Automatically download photos and videos from private messages
