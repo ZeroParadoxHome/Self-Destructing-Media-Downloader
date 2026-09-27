@@ -92,10 +92,16 @@ def _from_secrets(bin_path: Path, key_path: Path) -> Config | None:
     if not bin_path.is_file():
         return None
     data: dict[str, Any] = json.loads(decrypt_from_file(bin_path, key_path))
+    retention = data.get("RETENTION_DAYS", data.get("retention_days", 30))
+    storage = data.get("MAX_STORAGE_MB", data.get("max_storage_mb", 1024))
     return Config(
-        api_id=int(data["api_id"]),
-        api_hash=str(data["api_hash"]),
-        admin_id=int(data["admin_id"]),
+        api_id=_as_int("API_ID", str(data.get("API_ID", data.get("api_id", "")))),
+        api_hash=str(data.get("API_HASH", data.get("api_hash", ""))),
+        admin_id=_as_int(
+            "ADMIN_ID", str(data.get("ADMIN_ID", data.get("admin_id", "")))
+        ),
+        retention_days=_as_int("RETENTION_DAYS", str(retention)),
+        max_storage_mb=_as_int("MAX_STORAGE_MB", str(storage)),
     )
 
 
