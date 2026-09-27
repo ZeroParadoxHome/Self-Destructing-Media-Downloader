@@ -226,3 +226,8 @@ settings.json
 *.zip
 
 # End of https://www.toptal.com/developers/gitignore/api/python,windows,venv
+
+### Secrets ###
+.env
+.secrets.bin
+.secrets.key

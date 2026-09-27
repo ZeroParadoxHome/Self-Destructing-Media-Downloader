@@ -1,4 +1,5 @@
-telethon
-aiohttp
-aiofiles
-rich
+telethon>=1.38.0
+python-dotenv>=1.0.0
+cryptography>=42.0.0
+aiofiles>=23.2.0
+rich>=13.7.0
