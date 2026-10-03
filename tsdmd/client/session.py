@@ -22,7 +22,9 @@ def build_telethon_client(config: Config) -> TelegramClient:
     Returns:
         An unconnected TelegramClient bound to the TSDMD session.
     """
-    return TelegramClient(SESSION_NAME, config.api_id, config.api_hash)
+    client = TelegramClient(SESSION_NAME, config.api_id, config.api_hash)
+    client.parse_mode = "html"
+    return client
 
 
 async def connect(client: TelegramClient) -> None:

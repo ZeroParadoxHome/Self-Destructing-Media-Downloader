@@ -9,6 +9,7 @@ before dispatch.
 from __future__ import annotations
 
 import logging
+from html import escape
 
 from telethon import TelegramClient
 from telethon.events import NewMessage
@@ -18,15 +19,18 @@ from ..config.loader import Config
 logger = logging.getLogger(__name__)
 
 USAGE_HINT = (
-    "TSDMD admin commands:\n"
-    "  /help                 — show this usage hint\n"
-    "  /ping                 — measure bot round-trip time\n"
-    "  /status               — report downloads count and storage used\n"
-    "  /files                — list sender folders and file counts\n"
-    "  /check <relative>     — check whether a file exists in downloads\n"
-    "  /download <relative>  — send a downloaded file to this chat\n"
-    "  /delete <relative>    — remove a file or folder inside downloads\n"
-    "  /zip                  — export the downloads directory as a zip"
+    "<b>TSDMD admin commands:</b>\n"
+    "<blockquote expandable>"
+    "/help — show this usage hint\n"
+    "/ping — measure bot round-trip time\n"
+    "/status — report downloads count and storage used\n"
+    "/files — list sender folders and file counts\n"
+    "/all — send recent downloads to this chat\n"
+    "/check &lt;relative&gt; — check whether a file exists in downloads\n"
+    "/download &lt;relative&gt; — send a downloaded file to this chat\n"
+    "/delete &lt;relative&gt; — remove a file or folder inside downloads\n"
+    "/zip — export the downloads directory as a zip"
+    "</blockquote>"
 )
 
 
@@ -82,13 +86,18 @@ async def _dispatch(
 
     handler = COMMANDS.get(command)
     if handler is None:
-        await event.reply(f"Unknown command: /{command}\n\n{USAGE_HINT}")
+        await event.reply(
+            f"<b>Unknown command:</b> <code>/{escape(command)}</code>\n\n{USAGE_HINT}"
+        )
         return
     try:
         await handler(client, event, config, args)
     except Exception as exc:
         logger.exception("Error executing command /%s: %s", command, exc)
-        await event.reply(f"Command /{command} failed: {exc}")
+        await event.reply(
+            f"<b>Command failed:</b> <code>/{escape(command)}</code>\n"
+            f"<i>{escape(str(exc))}</i>"
+        )
 
 
 def register_commands(client: TelegramClient, config: Config) -> None:

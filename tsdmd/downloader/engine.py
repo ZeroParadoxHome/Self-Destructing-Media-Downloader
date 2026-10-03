@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +72,7 @@ async def download_and_echo(
     try:
         await with_floodwait_retry(
             lambda: client.send_file(
-                "me", str(saved_path), caption=f"TSDMD saved from {handle}"
+                "me", str(saved_path), caption=f"TSDMD saved from {escape(handle)}"
             )
         )
     except Exception as exc:
