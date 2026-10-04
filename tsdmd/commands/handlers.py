@@ -150,15 +150,15 @@ async def handle_help(
     config: Config,
     args: list[str],
 ) -> None:
-    """Display the admin command list."""
+    """Display the admin commands list."""
     if not is_admin(event, config.admin_id):
         return
     await _respond(
         event,
         "<b>TSDMD — Admin Commands</b>\n"
         "<blockquote expandable>"
-        "/help — this command list\n"
-        "/ping — measure Telegram round-trip\n"
+        "/help — show commands list\n"
+        "/ping — measure the Telegram round-trip latency\n"
         "/status — file counts and storage used\n"
         "/files — sender folders and file counts\n"
         "/all — send recent downloads to this chat\n"
@@ -177,7 +177,7 @@ async def handle_ping(
     config: Config,
     args: list[str],
 ) -> None:
-    """Measure Telegram API round-trip time and report bot status."""
+    """Measure the Telegram API round-trip time and report bot status."""
     if not is_admin(event, config.admin_id):
         return
     start = time.perf_counter()

@@ -4,7 +4,7 @@
 ![Telethon](https://img.shields.io/badge/Telethon-1.38%2B-green)
 ![License MIT](https://img.shields.io/badge/License-MIT-yellow)
 
-Archives Telegram view-once media before it disappears.
+Never lose expiring Telegram media again.
 
 ## Features
 
@@ -45,7 +45,7 @@ Then install and configure:
 ```bash
 pip install -r requirements.txt
 copy .env.example .env   # Windows
-# cp .env.example .env   # Linux
+cp .env.example .env   # Linux
 ```
 
 Fill in `API_ID`, `API_HASH`, and `ADMIN_ID` in `.env` (get the first two at
@@ -64,8 +64,7 @@ Fill in `API_ID`, `API_HASH`, and `ADMIN_ID` in `.env` (get the first two at
 Credential loading is `.env`-first: when `.env` holds all three required
 values, they are used silently with no prompts. Otherwise TSDMD prompts
 interactively in the terminal once, encrypts the answers into `.secrets.bin`
-(Fernet, key in `.secrets.key`), and reuses them on later runs. No plaintext
-`settings.json` is ever written.
+(Fernet, key in `.secrets.key`), and reuses them on later runs.
 
 ## Usage
 
@@ -94,8 +93,8 @@ Send these as private messages to your own account from the admin ID:
 
 | Command               | Purpose                                  |
 |-----------------------|------------------------------------------|
-| `/help`               | Show the command list                    |
-| `/ping`               | Measure Telegram round-trip latency      |
+| `/help`               | Show commands list                       |
+| `/ping`               | Measure the Telegram round-trip latency  |
 | `/status`             | File counts and storage used vs. quota   |
 | `/files`              | Sender folders with copyable file paths  |
 | `/all`                | Send up to 30 newest archived files to the chat |
@@ -135,8 +134,6 @@ systemd/tsdmd.service    # user service unit
   login code, at the password prompt.
 - **`FloodWaitError` sleeps** — normal Telegram rate limiting; TSDMD waits and
   retries automatically, no action needed.
-- **Empty archive / no downloads** — only view-once media in private chats is
-  saved; regular photos, videos, and group media are ignored by design.
 
 ## Contributing
 
@@ -152,4 +149,4 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## Disclaimer
 
-For educational purposes. Respect copyright law and the privacy of others.
+For learning and personal educational purposes. Respect copyright law and honor the privacy of others.

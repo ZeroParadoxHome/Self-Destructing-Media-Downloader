@@ -22,7 +22,7 @@ USAGE_HINT = (
     "<b>TSDMD admin commands:</b>\n"
     "<blockquote expandable>"
     "/help — show this usage hint\n"
-    "/ping — measure bot round-trip time\n"
+    "/ping — measure the Telegram round-trip latency\n"
     "/status — report downloads count and storage used\n"
     "/files — list sender folders and file counts\n"
     "/all — send recent downloads to this chat\n"
