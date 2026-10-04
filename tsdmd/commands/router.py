@@ -82,29 +82,33 @@ async def _dispatch(
 ) -> None:
     """Look up and execute the handler for a command, or reply with usage."""
     # Deferred import: handlers import is_admin from this module.
-    from .handlers import COMMANDS
+    from .handlers import COMMANDS, _respond
 
     handler = COMMANDS.get(command)
     if handler is None:
-        await event.reply(
-            f"<b>Unknown command:</b> <code>/{escape(command)}</code>\n\n{USAGE_HINT}"
+        await _respond(
+            event,
+            f"<b>Unknown command:</b> <code>/{escape(command)}</code>\n\n{USAGE_HINT}",
         )
         return
     try:
         await handler(client, event, config, args)
     except Exception as exc:
         logger.exception("Error executing command /%s: %s", command, exc)
-        await event.reply(
+        await _respond(
+            event,
             f"<b>Command failed:</b> <code>/{escape(command)}</code>\n"
-            f"<i>{escape(str(exc))}</i>"
+            f"<i>{escape(str(exc))}</i>",
         )
 
 
 def register_commands(client: TelegramClient, config: Config) -> None:
     """Register the slash-command handler on the client.
 
-    Only incoming messages are processed, and every message must originate
-    from the configured admin ID.
+    Only messages from the configured admin ID are processed. No
+    incoming/outgoing filter is applied: admin commands are typically sent
+    from the account itself (own messages), which an incoming-only filter
+    would silently drop.
 
     Args:
         client: The connected Telethon client.
@@ -121,5 +125,5 @@ def register_commands(client: TelegramClient, config: Config) -> None:
 
     client.add_event_handler(
         _handler,
-        NewMessage(incoming=True, pattern=r"^/"),
+        NewMessage(pattern=r"^/"),
     )

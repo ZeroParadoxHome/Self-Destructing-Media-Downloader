@@ -20,6 +20,7 @@ from typing import Awaitable, Callable
 from uuid import uuid4
 
 from telethon import TelegramClient
+from telethon.errors import MessageAuthorRequiredError, MessageNotModifiedError
 from telethon.events import NewMessage
 
 from ..client.floodwait import with_floodwait_retry
@@ -38,9 +39,20 @@ _MAX_FOLDERS_LISTED = 50
 _MAX_FILES_SENT = 30
 
 
-async def _reply(event: NewMessage.Event, text: str) -> None:
-    """Send an HTML reply to the event, retrying through flood waits."""
-    await with_floodwait_retry(lambda: event.reply(text))
+async def _respond(event: NewMessage.Event, text: str) -> None:
+    """Edit the triggering message when possible, else send a reply.
+
+    Editing keeps the admin chat tidy. Messages the account cannot edit
+    fall back to a plain reply. Identical content is left as-is. Both paths
+    retry through flood waits.
+    File deliveries always stay separate new messages via send_file.
+    """
+    try:
+        await with_floodwait_retry(lambda: event.edit(text))
+    except MessageNotModifiedError:
+        return
+    except MessageAuthorRequiredError:
+        await with_floodwait_retry(lambda: event.reply(text))
 
 
 def _is_real_file(path: Path) -> bool:
@@ -103,6 +115,22 @@ def join_lines(lines: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _mtime_or_zero(path: Path) -> float:
+    """Return a file's mtime, or 0.0 when it vanished mid-scan.
+
+    Args:
+        path: Filesystem path to stat.
+
+    Returns:
+        Modification time in seconds, or 0.0 on stat failure so the
+        entry sorts last instead of breaking newest-first ordering.
+    """
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def _total_size_mb(files: Iterable[Path]) -> float:
     """Return the total size of regular files in MB, tolerating stat errors."""
     total_bytes = 0
@@ -125,7 +153,7 @@ async def handle_help(
     """Display the admin command list."""
     if not is_admin(event, config.admin_id):
         return
-    await _reply(
+    await _respond(
         event,
         "<b>TSDMD — Admin Commands</b>\n"
         "<blockquote expandable>"
@@ -134,9 +162,9 @@ async def handle_help(
         "/status — file counts and storage used\n"
         "/files — sender folders and file counts\n"
         "/all — send recent downloads to this chat\n"
-        "/check &lt;path&gt; — check a file exists\n"
-        "/download &lt;path&gt; — send one file here\n"
-        "/delete &lt;path&gt; — remove a file or folder\n"
+        "<code>/check</code> &lt;path&gt; — check a file exists\n"
+        "<code>/download</code> &lt;path&gt; — send one file here\n"
+        "<code>/delete</code> &lt;path&gt; — remove a file or folder\n"
         "/zip — export downloads as a zip"
         "</blockquote>\n"
         "<i>All paths are relative to downloads/.</i>",
@@ -159,7 +187,7 @@ async def handle_ping(
         "Excellent" if latency_ms < 200 else "Good" if latency_ms <= 800 else "Degraded"
     )
     logger.info("Ping for admin %s: %.0f ms (%s)", config.admin_id, latency_ms, verdict)
-    await _reply(
+    await _respond(
         event, f"<b>Pong</b> <code>{latency_ms:.0f} ms</code> <i>{verdict}</i>"
     )
 
@@ -192,7 +220,7 @@ async def handle_status(
         len(folders),
         total_mb,
     )
-    await _reply(
+    await _respond(
         event,
         "<b>Storage Status</b>\n"
         "<blockquote>"
@@ -213,11 +241,11 @@ async def handle_files(
     if not is_admin(event, config.admin_id):
         return
     if not DOWNLOADS_DIR.is_dir():
-        await _reply(event, "<b>No downloads yet.</b>")
+        await _respond(event, "<b>No downloads yet.</b>")
         return
     folders = sorted(p for p in DOWNLOADS_DIR.iterdir() if p.is_dir())
     if not folders:
-        await _reply(event, "<b>No sender folders found.</b>")
+        await _respond(event, "<b>No sender folders found.</b>")
         return
 
     shown = folders[:_MAX_FOLDERS_LISTED]
@@ -228,7 +256,10 @@ async def handle_files(
             f"<b>{escape(folder.name)}</b> — <code>{len(folder_files)}</code> file(s)"
         )
         for file_path in folder_files:
-            relative = f"{folder.name}/{file_path.name}"
+            try:
+                relative = file_path.relative_to(DOWNLOADS_DIR).as_posix()
+            except ValueError:
+                continue
             lines.append(f"<code>{escape(relative)}</code>")
     remaining = len(folders) - len(shown)
     footer = f"<i>…and {remaining} more folder(s).</i>" if remaining else ""
@@ -238,7 +269,7 @@ async def handle_files(
         len(shown),
         len(folders),
     )
-    await _reply(
+    await _respond(
         event,
         f"<b>Archived Senders</b> (<code>{len(folders)}</code>)\n"
         f"<blockquote expandable>{join_lines(lines)}</blockquote>\n{footer}"
@@ -256,7 +287,7 @@ async def handle_check(
     if not is_admin(event, config.admin_id):
         return
     if not args:
-        await _reply(event, "Usage: <code>/check &lt;relative-path&gt;</code>")
+        await _respond(event, "<b>Usage:</b> <code>/check &lt;relative-path&gt;</code>")
         return
     raw = " ".join(args)
     try:
@@ -265,11 +296,11 @@ async def handle_check(
         logger.warning(
             "Access denied for admin %s on /check with target %s", config.admin_id, raw
         )
-        await _reply(event, f"<b>Access Denied</b>\n<i>{escape(str(exc))}</i>")
+        await _respond(event, f"<b><u>Access Denied</u></b>\n<i>{escape(str(exc))}</i>")
         return
 
     if not target.exists():
-        await _reply(event, f"<b>Not found:</b> <code>{escape(raw)}</code>")
+        await _respond(event, f"<b><u>Not found</u></b>: <code>{escape(raw)}</code>")
         return
     kind = "directory" if target.is_dir() else "file"
     size_str = ""
@@ -280,7 +311,7 @@ async def handle_check(
         except OSError:
             pass
     logger.info("Check for admin %s: %s exists as %s", config.admin_id, raw, kind)
-    await _reply(event, f"<b>Found {kind}:</b> <code>{escape(raw)}</code>{size_str}")
+    await _respond(event, f"<b>Found {kind}:</b> <code>{escape(raw)}</code>{size_str}")
 
 
 async def handle_download(
@@ -293,7 +324,9 @@ async def handle_download(
     if not is_admin(event, config.admin_id):
         return
     if not args:
-        await _reply(event, "Usage: <code>/download &lt;relative-path&gt;</code>")
+        await _respond(
+            event, "<b>Usage:</b> <code>/download &lt;relative-path&gt;</code>"
+        )
         return
     raw = " ".join(args)
     try:
@@ -304,15 +337,15 @@ async def handle_download(
             config.admin_id,
             raw,
         )
-        await _reply(event, f"<b>Access Denied</b>\n<i>{escape(str(exc))}</i>")
+        await _respond(event, f"<b><u>Access Denied</u></b>\n<i>{escape(str(exc))}</i>")
         return
 
     if not _is_real_file(target):
-        await _reply(event, f"<b>File not found:</b> <code>{escape(raw)}</code>")
+        await _respond(event, f"<b><u>Not found</u></b>: <code>{escape(raw)}</code>")
         return
 
     sender_id = getattr(event, "sender_id", config.admin_id)
-    await _reply(event, f"<i>Sending <code>{escape(target.name)}</code>…</i>")
+    await _respond(event, f"<i>Sending <code>{escape(target.name)}</code>…</i>")
     try:
         await with_floodwait_retry(
             lambda: client.send_file(
@@ -326,7 +359,7 @@ async def handle_download(
         logger.error(
             "Failed to send file %s for admin %s: %s", raw, config.admin_id, exc
         )
-        await _reply(event, f"<b>Send failed:</b> <i>{escape(str(exc))}</i>")
+        await _respond(event, f"<b><u>Send failed</u></b>: <i>{escape(str(exc))}</i>")
 
 
 async def handle_delete(
@@ -339,7 +372,9 @@ async def handle_delete(
     if not is_admin(event, config.admin_id):
         return
     if not args:
-        await _reply(event, "Usage: <code>/delete &lt;relative-path&gt;</code>")
+        await _respond(
+            event, "<b>Usage:</b> <code>/delete &lt;relative-path&gt;</code>"
+        )
         return
     raw = " ".join(args)
     try:
@@ -350,27 +385,33 @@ async def handle_delete(
             config.admin_id,
             raw,
         )
-        await _reply(event, f"<b>Access Denied</b>\n<i>{escape(str(exc))}</i>")
+        await _respond(event, f"<b><u>Access Denied</u></b>\n<i>{escape(str(exc))}</i>")
         return
 
     if not target.exists():
-        await _reply(event, f"<b>Does not exist:</b> <code>{escape(raw)}</code>")
+        await _respond(
+            event, f"<b><u>Does not exist</u></b>: <code>{escape(raw)}</code>"
+        )
         return
 
     try:
         if _is_real_file(target):
             target.unlink()
             logger.info("Deleted file %s for admin %s", raw, config.admin_id)
-            await _reply(event, f"<b>Deleted file:</b> <code>{escape(raw)}</code>")
+            await _respond(event, f"<b>Deleted file:</b> <code>{escape(raw)}</code>")
         elif target.is_dir():
             shutil.rmtree(target)
             logger.info("Deleted folder %s for admin %s", raw, config.admin_id)
-            await _reply(event, f"<b>Deleted folder:</b> <code>{escape(raw)}</code>")
+            await _respond(event, f"<b>Deleted folder:</b> <code>{escape(raw)}</code>")
         else:
-            await _reply(event, f"<b>Cannot delete:</b> <code>{escape(raw)}</code>")
+            await _respond(
+                event, f"<b><u>Cannot delete</u></b>: <code>{escape(raw)}</code>"
+            )
     except OSError as exc:
         logger.error("Failed to delete %s for admin %s: %s", raw, config.admin_id, exc)
-        await _reply(event, f"<b>Deletion failed:</b> <i>{escape(str(exc))}</i>")
+        await _respond(
+            event, f"<b><u>Deletion failed</u></b>: <i>{escape(str(exc))}</i>"
+        )
 
 
 async def handle_all(
@@ -379,15 +420,19 @@ async def handle_all(
     config: Config,
     args: list[str],
 ) -> None:
-    """Send up to 30 archived files to the admin chat."""
+    """Send up to 30 archived files, newest first, to the admin chat."""
     if not is_admin(event, config.admin_id):
         return
-    files = sorted(_iter_files(DOWNLOADS_DIR))
+    files = sorted(_iter_files(DOWNLOADS_DIR), key=_mtime_or_zero, reverse=True)
     if not files:
-        await _reply(event, "<b>Nothing archived yet.</b>")
+        await _respond(event, "<b>Nothing archived yet.</b>")
         return
 
     sender_id = getattr(event, "sender_id", config.admin_id)
+    await _respond(
+        event,
+        f"<i>Sending <code>{min(len(files), _MAX_FILES_SENT)}</code> newest files…</i>",
+    )
     sent = 0
     for file_path in files[:_MAX_FILES_SENT]:
         try:
@@ -414,13 +459,13 @@ async def handle_all(
         remaining,
     )
     if remaining:
-        await _reply(
+        await _respond(
             event,
             f"<b>Sent <code>{sent}</code> of <code>{len(files)}</code> files.</b>\n"
             f"<i>{remaining} more remain — use /zip for the full archive.</i>",
         )
     else:
-        await _reply(event, f"<b>Sent all <code>{sent}</code> files.</b>")
+        await _respond(event, f"<b>Sent all <code>{sent}</code> files.</b>")
 
 
 async def handle_zip(
@@ -433,11 +478,11 @@ async def handle_zip(
     if not is_admin(event, config.admin_id):
         return
     if not DOWNLOADS_DIR.is_dir() or not any(_iter_files(DOWNLOADS_DIR)):
-        await _reply(event, "<b>Downloads are empty</b> — <i>nothing to zip.</i>")
+        await _respond(event, "<b>Downloads are empty</b> — <i>nothing to zip.</i>")
         return
 
     archive = PROJECT_ROOT / f"tsdmd-export-{uuid4().hex[:8]}.zip"
-    await _reply(event, "<i>Creating archive, please wait…</i>")
+    await _respond(event, "<i>Creating archive, please wait…</i>")
     try:
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
             for file_path in _iter_files(DOWNLOADS_DIR):
@@ -452,12 +497,14 @@ async def handle_zip(
             )
         )
         logger.info("Zip archive sent for admin %s", config.admin_id)
-        await _reply(event, "<b>Archive sent successfully.</b>")
+        await _respond(event, "<b>Archive sent successfully.</b>")
     except Exception as exc:
         logger.error(
             "Failed to build or send zip for admin %s: %s", config.admin_id, exc
         )
-        await _reply(event, f"<b>Archive failed:</b> <i>{escape(str(exc))}</i>")
+        await _respond(
+            event, f"<b><u>Archive failed</u></b>: <i>{escape(str(exc))}</i>"
+        )
     finally:
         try:
             archive.unlink(missing_ok=True)

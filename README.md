@@ -98,7 +98,7 @@ Send these as private messages to your own account from the admin ID:
 | `/ping`               | Measure Telegram round-trip latency      |
 | `/status`             | File counts and storage used vs. quota   |
 | `/files`              | Sender folders with copyable file paths  |
-| `/all`                | Send up to 30 archived files to the chat |
+| `/all`                | Send up to 30 newest archived files to the chat |
 | `/check <path>`       | Check a path exists inside downloads     |
 | `/download <path>`    | Send one archived file to the chat       |
 | `/delete <path>`      | Delete a file or folder inside downloads |

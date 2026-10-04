@@ -35,8 +35,9 @@ async def connect(client: TelegramClient) -> None:
 
     When a stored, authorized session already exists this only connects.
     On first run (no authorized session) an interactive login runs in the
-    terminal: Telethon prompts for the phone number, the login code, and
-    the 2FA password when one is set.
+    terminal: the phone number and login code are read with ``input()``,
+    the 2FA password (when set) with ``getpass``, and authentication runs
+    through ``send_code_request``/``sign_in``.
 
     Args:
         client: The Telethon client to connect.
