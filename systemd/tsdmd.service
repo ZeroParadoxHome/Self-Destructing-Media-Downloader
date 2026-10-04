@@ -1,0 +1,24 @@
+# systemd user service for TSDMD.
+#
+# %h expands to the user's home directory, so this file works from any
+# checkout location matching WorkingDirectory below.
+#
+# Windows alternative (run manually, systemd is Linux-only):
+#   Self-Destructing-Media-Downloader\venv\Scripts\python.exe main.py
+
+[Unit]
+Description=TSDMD Self-Destructing Media Downloader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Self-Destructing-Media-Downloader
+ExecStart=%h/Self-Destructing-Media-Downloader/venv/bin/python main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import getpass
+
 from telethon import TelegramClient
+from telethon.errors import SessionPasswordNeededError
 
 from ..config.loader import Config
 
@@ -28,18 +31,33 @@ def build_telethon_client(config: Config) -> TelegramClient:
 
 
 async def connect(client: TelegramClient) -> None:
-    """Connect the client and verify the stored session is authorized.
+    """Connect the client, performing first-run login when needed.
+
+    When a stored, authorized session already exists this only connects.
+    On first run (no authorized session) an interactive login runs in the
+    terminal: Telethon prompts for the phone number, the login code, and
+    the 2FA password when one is set.
 
     Args:
         client: The Telethon client to connect.
 
     Raises:
-        RuntimeError: When the client connects but the session is not
-            authorized (no stored login for this Telegram account).
+        RuntimeError: When the session is still unauthorized after the
+            interactive login attempt.
     """
     await client.connect()
+    if await client.is_user_authorized():
+        return
+    phone = input("Enter your phone number (with country code): ").strip()
+    sent = await client.send_code_request(phone)
+    code = input("Enter the Telegram login code: ").strip()
+    try:
+        await client.sign_in(phone, code, phone_code_hash=sent.phone_code_hash)
+    except SessionPasswordNeededError:
+        password = getpass.getpass("Enter your 2FA password: ")
+        await client.sign_in(phone, password=password)
     if not await client.is_user_authorized():
-        raise RuntimeError("Session 'tsdmd' is not authorized; log in first.")
+        raise RuntimeError("Session 'tsdmd' is not authorized; login failed.")
 
 
 async def disconnect(client: TelegramClient) -> None:
