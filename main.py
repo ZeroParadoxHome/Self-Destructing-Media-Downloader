@@ -40,6 +40,13 @@ async def amain() -> int:
     register_commands(client, config)
 
     await connect(client)
+    me = await client.get_me()
+    if getattr(me, "id", None) != config.admin_id:
+        logger.warning(
+            "Logged in as %s but ADMIN_ID is %s; commands will stay silent.",
+            getattr(me, "id", None),
+            config.admin_id,
+        )
     cleaner_task = await start_cleaner_task(config)
     console.print(
         f"[bold green]TSDMD running[/bold green] — admin: "

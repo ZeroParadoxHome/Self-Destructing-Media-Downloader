@@ -19,14 +19,14 @@ from pathlib import Path
 from typing import Awaitable, Callable
 from uuid import uuid4
 
-from telethon import TelegramClient
-from telethon.errors import MessageAuthorRequiredError, MessageNotModifiedError
+from telethon import TelegramClient, errors
+from telethon.errors import MessageNotModifiedError
 from telethon.events import NewMessage
 
 from ..client.floodwait import with_floodwait_retry
 from ..config.loader import Config
 from ..downloader.paths import DOWNLOADS_DIR, PROJECT_ROOT
-from .router import is_admin
+from .router import USAGE_FOOTER, USAGE_HINT, is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +43,15 @@ async def _respond(event: NewMessage.Event, text: str) -> None:
     """Edit the triggering message when possible, else send a reply.
 
     Editing keeps the admin chat tidy. Messages the account cannot edit
-    fall back to a plain reply. Identical content is left as-is. Both paths
-    retry through flood waits.
+    (foreign or forwarded messages) fall back to a plain reply. Identical
+    content is left as-is. Both paths retry through flood waits.
     File deliveries always stay separate new messages via send_file.
     """
     try:
         await with_floodwait_retry(lambda: event.edit(text))
     except MessageNotModifiedError:
         return
-    except MessageAuthorRequiredError:
+    except (errors.MessageAuthorRequiredError, errors.MessageIdInvalidError):
         await with_floodwait_retry(lambda: event.reply(text))
 
 
@@ -153,22 +153,7 @@ async def handle_help(
     """Display the admin commands list."""
     if not is_admin(event, config.admin_id):
         return
-    await _respond(
-        event,
-        "<b>TSDMD — Admin Commands</b>\n"
-        "<blockquote expandable>"
-        "/help — show commands list\n"
-        "/ping — measure the Telegram round-trip latency\n"
-        "/status — file counts and storage used\n"
-        "/files — sender folders and file counts\n"
-        "/all — send recent downloads to this chat\n"
-        "<code>/check</code> &lt;path&gt; — check a file exists\n"
-        "<code>/download</code> &lt;path&gt; — send one file here\n"
-        "<code>/delete</code> &lt;path&gt; — remove a file or folder\n"
-        "/zip — export downloads as a zip"
-        "</blockquote>\n"
-        "<i>All paths are relative to downloads/.</i>",
-    )
+    await _respond(event, f"{USAGE_HINT}\n{USAGE_FOOTER}")
 
 
 async def handle_ping(
@@ -177,7 +162,7 @@ async def handle_ping(
     config: Config,
     args: list[str],
 ) -> None:
-    """Measure the Telegram API round-trip time and report bot status."""
+    """Measure round-trip latency and report bot status."""
     if not is_admin(event, config.admin_id):
         return
     start = time.perf_counter()
@@ -188,7 +173,7 @@ async def handle_ping(
     )
     logger.info("Ping for admin %s: %.0f ms (%s)", config.admin_id, latency_ms, verdict)
     await _respond(
-        event, f"<b>Pong</b> <code>{latency_ms:.0f} ms</code> <i>{verdict}</i>"
+        event, f"<b>Pong</b> | <code>{latency_ms:.0f} ms</code> | <u>{verdict}</u>"
     )
 
 
@@ -273,7 +258,8 @@ async def handle_files(
         event,
         f"<b>Archived Senders</b> (<code>{len(folders)}</code>)\n"
         f"<blockquote expandable>{join_lines(lines)}</blockquote>\n{footer}"
-        "<i>Copy a path to use with /download, /delete, or /check.</i>",
+        "<i>Copy a path to use with <code>/download</code>, "
+        "<code>/delete</code>, or <code>/check</code>.</i>",
     )
 
 
@@ -345,13 +331,13 @@ async def handle_download(
         return
 
     sender_id = getattr(event, "sender_id", config.admin_id)
-    await _respond(event, f"<i>Sending <code>{escape(target.name)}</code>…</i>")
+    await _respond(event, f"<i>Sending <code>{escape(target.name)}</code> …</i>")
     try:
         await with_floodwait_retry(
             lambda: client.send_file(
                 sender_id,
                 str(target),
-                caption=f"TSDMD: {escape(target.name)}",
+                caption=f"<b>TSDMD:</b> {escape(target.name)}",
             )
         )
         logger.info("Sent file %s to admin %s", raw, config.admin_id)
@@ -431,7 +417,8 @@ async def handle_all(
     sender_id = getattr(event, "sender_id", config.admin_id)
     await _respond(
         event,
-        f"<i>Sending <code>{min(len(files), _MAX_FILES_SENT)}</code> newest files…</i>",
+        f"<i>Sending <code>{min(len(files), _MAX_FILES_SENT)}</code> "
+        "newest file(s) …</i>",
     )
     sent = 0
     for file_path in files[:_MAX_FILES_SENT]:
@@ -440,7 +427,7 @@ async def handle_all(
                 lambda fp=file_path: client.send_file(
                     sender_id,
                     str(fp),
-                    caption=f"TSDMD: {escape(fp.name)}",
+                    caption=f"<b>TSDMD:</b> {escape(fp.name)}",
                 )
             )
             sent += 1
@@ -465,7 +452,7 @@ async def handle_all(
             f"<i>{remaining} more remain — use /zip for the full archive.</i>",
         )
     else:
-        await _respond(event, f"<b>Sent all <code>{sent}</code> files.</b>")
+        await _respond(event, f"<b>Sent all the <code>{sent}</code> file(s).</b>")
 
 
 async def handle_zip(
@@ -482,7 +469,7 @@ async def handle_zip(
         return
 
     archive = PROJECT_ROOT / f"tsdmd-export-{uuid4().hex[:8]}.zip"
-    await _respond(event, "<i>Creating archive, please wait…</i>")
+    await _respond(event, "<i>Creating your archive, please wait …</i>")
     try:
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
             for file_path in _iter_files(DOWNLOADS_DIR):
@@ -493,7 +480,7 @@ async def handle_zip(
             lambda: client.send_file(
                 sender_id,
                 str(archive),
-                caption="TSDMD downloads archive",
+                caption="<b>TSDMD:</b> downloaded requested archive file",
             )
         )
         logger.info("Zip archive sent for admin %s", config.admin_id)

@@ -19,19 +19,21 @@ from ..config.loader import Config
 logger = logging.getLogger(__name__)
 
 USAGE_HINT = (
-    "<b>TSDMD admin commands:</b>\n"
+    "<b>TSDMD — Admin Commands</b>\n"
     "<blockquote expandable>"
-    "/help — show this usage hint\n"
-    "/ping — measure the Telegram round-trip latency\n"
-    "/status — report downloads count and storage used\n"
-    "/files — list sender folders and file counts\n"
+    "/help — show commands list\n"
+    "/ping — measure round-trip latency\n"
+    "/status — file counts and storage used\n"
+    "/files — sender folders and file counts\n"
     "/all — send recent downloads to this chat\n"
-    "/check &lt;relative&gt; — check whether a file exists in downloads\n"
-    "/download &lt;relative&gt; — send a downloaded file to this chat\n"
-    "/delete &lt;relative&gt; — remove a file or folder inside downloads\n"
-    "/zip — export the downloads directory as a zip"
+    "<code>/check</code> &lt;path&gt; — check file existence\n"
+    "<code>/download</code> &lt;path&gt; — send one file here\n"
+    "<code>/delete</code> &lt;path&gt; — remove a file or folder\n"
+    "/zip — export downloads as a zip"
     "</blockquote>"
 )
+
+USAGE_FOOTER = "<i>All paths are relative to <code>downloads/</code></i>"
 
 
 def is_admin(event: NewMessage.Event, admin_id: int) -> bool:
@@ -86,6 +88,11 @@ async def _dispatch(
 
     handler = COMMANDS.get(command)
     if handler is None:
+        sender_id = getattr(event, "sender_id", None)
+        chat_id = getattr(event, "chat_id", None)
+        is_self_chat = sender_id is not None and sender_id == chat_id
+        if not (event.is_private and is_self_chat):
+            return
         await _respond(
             event,
             f"<b>Unknown command:</b> <code>/{escape(command)}</code>\n\n{USAGE_HINT}",
@@ -117,6 +124,8 @@ def register_commands(client: TelegramClient, config: Config) -> None:
 
     async def _handler(event: NewMessage.Event) -> None:
         if not is_admin(event, config.admin_id):
+            return
+        if getattr(getattr(event, "message", None), "fwd_from", None):
             return
         command, args = parse_command(getattr(event, "text", "") or "")
         if not command:

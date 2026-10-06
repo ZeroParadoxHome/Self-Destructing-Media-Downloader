@@ -69,11 +69,10 @@ async def download_and_echo(
 
     saved_path = Path(saved)
     handle = username or getattr(sender, "first_name", None) or str(sender_id)
+    caption = f"<b>Saved</b> from <u>{escape(str(handle))}</u>"
     try:
         await with_floodwait_retry(
-            lambda: client.send_file(
-                "me", str(saved_path), caption=f"TSDMD saved from {escape(handle)}"
-            )
+            lambda: client.send_file("me", str(saved_path), caption=caption)
         )
     except Exception as exc:
         logger.error("Failed to echo saved media to Saved Messages: %s", exc)

@@ -5,8 +5,7 @@ from __future__ import annotations
 
 import getpass
 
-from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError
+from telethon import TelegramClient, errors
 
 from ..config.loader import Config
 
@@ -54,9 +53,13 @@ async def connect(client: TelegramClient) -> None:
     code = input("Enter the Telegram login code: ").strip()
     try:
         await client.sign_in(phone, code, phone_code_hash=sent.phone_code_hash)
-    except SessionPasswordNeededError:
+    except errors.SessionPasswordNeededError:
         password = getpass.getpass("Enter your 2FA password: ")
-        await client.sign_in(phone, password=password)
+        try:
+            await client.sign_in(phone, password=password)
+        except errors.PasswordHashInvalidError:
+            password = getpass.getpass("Wrong password, try once more: ")
+            await client.sign_in(phone, password=password)
     if not await client.is_user_authorized():
         raise RuntimeError("Session 'tsdmd' is not authorized; login failed.")
 

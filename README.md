@@ -94,11 +94,11 @@ Send these as private messages to your own account from the admin ID:
 | Command               | Purpose                                  |
 |-----------------------|------------------------------------------|
 | `/help`               | Show commands list                       |
-| `/ping`               | Measure the Telegram round-trip latency  |
+| `/ping`               | Measure round-trip latency               |
 | `/status`             | File counts and storage used vs. quota   |
 | `/files`              | Sender folders with copyable file paths  |
 | `/all`                | Send up to 30 newest archived files to the chat |
-| `/check <path>`       | Check a path exists inside downloads     |
+| `/check <path>`       | Check file existence in downloads        |
 | `/download <path>`    | Send one archived file to the chat       |
 | `/delete <path>`      | Delete a file or folder inside downloads |
 | `/zip`                | Export downloads as a zip archive        |
@@ -132,6 +132,8 @@ systemd/tsdmd.service    # user service unit
   app on the same number, then retry; codes take a minute on new devices.
 - **`SessionPasswordNeededError` loop** — enter the 2FA *password*, not another
   login code, at the password prompt.
+- **Commands ignored / total silence** — `ADMIN_ID` doesn't match the logged-in
+  account; check the startup warning and fix `ADMIN_ID` to your own user id.
 - **`FloodWaitError` sleeps** — normal Telegram rate limiting; TSDMD waits and
   retries automatically, no action needed.
 
