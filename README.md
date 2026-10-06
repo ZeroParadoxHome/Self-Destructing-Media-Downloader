@@ -134,8 +134,6 @@ systemd/tsdmd.service    # user service unit
   login code, at the password prompt.
 - **Commands ignored / total silence** — `ADMIN_ID` doesn't match the logged-in
   account; check the startup warning and fix `ADMIN_ID` to your own user id.
-- **`FloodWaitError` sleeps** — normal Telegram rate limiting; TSDMD waits and
-  retries automatically, no action needed.
 
 ## Contributing
 
