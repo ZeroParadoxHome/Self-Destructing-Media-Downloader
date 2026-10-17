@@ -128,7 +128,7 @@ def register_commands(client: TelegramClient, config: Config) -> None:
             return
         if getattr(getattr(event, "message", None), "fwd_from", None):
             return
-        command, args = parse_command(getattr(event, "text", "") or "")
+        command, args = parse_command(getattr(event, "raw_text", "") or "")
         if not command:
             return
         await _dispatch(client, event, config, command, args)
