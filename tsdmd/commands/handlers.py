@@ -149,7 +149,7 @@ def _total_size_mb(files: Iterable[Path]) -> float:
 
 
 _POST_LINK_RE = re.compile(
-    r"^(?:https?://)?t\.me/(?:s/)?(?:([A-Za-z0-9_]{4,32})|c/(\d+))/(\d+)$"
+    r"^(?:https?://)?(?:t\.me|telegram\.me)/(?:s/)?(?:([A-Za-z0-9_]{4,32})|c/(\d+))/(\d+)/?(?:\?.*)?$"
 )
 
 
