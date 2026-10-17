@@ -29,6 +29,7 @@ USAGE_HINT = (
     "<code>/check</code> &lt;path&gt; — check file existence\n"
     "<code>/download</code> &lt;path&gt; — send one file here\n"
     "<code>/delete</code> &lt;path&gt; — remove a file or folder\n"
+    "<code>/save</code> &lt;link&gt; — save post to Saved Messages\n"
     "/zip — export downloads as a zip"
     "</blockquote>"
 )

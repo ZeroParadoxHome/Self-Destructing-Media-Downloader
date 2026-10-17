@@ -11,7 +11,7 @@ Never lose expiring Telegram media again.
 - View-once TTL filter — downloads only self-destructing media, ignores the rest
 - Per-sender folders (`downloads/<id>-<handle>/`) for stable, reviewable archives
 - Saved Messages echo — a copy of every archive lands in your Saved Messages
-- 9 admin slash commands for status, browsing, export, and cleanup
+- 10 admin slash commands for status, browsing, saving, export, and cleanup
 - Retention engine — age expiry plus storage quota, oldest-first, on a 6h cycle
 - Encrypted credentials — Fernet-encrypted local store, no plaintext secrets
 - Systemd user service for always-on Linux servers
@@ -101,6 +101,7 @@ Send these as private messages to your own account from the admin ID:
 | `/check <path>`       | Check file existence in downloads        |
 | `/download <path>`    | Send one archived file to the chat       |
 | `/delete <path>`      | Delete a file or folder inside downloads |
+| `/save <link>`        | Save a channel post to Saved Messages    |
 | `/zip`                | Export downloads as a zip archive        |
 
 ## Project structure
@@ -130,6 +131,13 @@ systemd/tsdmd.service    # user service unit
 
 - **Login code never arrives** — request it from an already-logged-in Telegram
   app on the same number, then retry; codes take a minute on new devices.
+- **Paid content** — `/save` refuses posts behind Telegram Stars; paid media
+  is blocked server-side and is never sent to non-purchasing clients.
+- **`/save` link formats and access** — `t.me/<channel>/<post>` works only
+  for public channels. Private channels need the `t.me/c/<id>/<post>` form.
+  Your account must be a member of the channel, otherwise Telegram refuses
+  fetch at the entity-permission level and `/save` reports it cleanly.
+  Channels restricting content remain fetchable while you are a member.
 - **`SessionPasswordNeededError` loop** — enter the 2FA *password*, not another
   login code, at the password prompt.
 - **Commands ignored / total silence** — `ADMIN_ID` doesn't match the logged-in

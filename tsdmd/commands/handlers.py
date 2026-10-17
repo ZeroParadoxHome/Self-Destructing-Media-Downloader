@@ -10,18 +10,22 @@ All replies use HTML parse mode, which is set on the client at startup.
 from __future__ import annotations
 
 import logging
+import re
 import shutil
+import tempfile
 import time
 import zipfile
 from collections.abc import Iterable, Iterator
 from html import escape
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, cast
 from uuid import uuid4
 
 from telethon import TelegramClient, errors
 from telethon.errors import MessageNotModifiedError
 from telethon.events import NewMessage
+from telethon.tl.custom.message import Message
+from telethon.tl.types import PeerChannel
 
 from ..client.floodwait import with_floodwait_retry
 from ..config.loader import Config
@@ -142,6 +146,34 @@ def _total_size_mb(files: Iterable[Path]) -> float:
         except OSError:
             continue
     return total_bytes / (1024 * 1024)
+
+
+_POST_LINK_RE = re.compile(
+    r"^(?:https?://)?t\.me/(?:s/)?(?:([A-Za-z0-9_]{4,32})|c/(\d+))/(\d+)$"
+)
+
+
+def _parse_post_link(raw: str) -> tuple[str, str | int, int] | None:
+    """Parse a Telegram post link into a channel identity and post id.
+
+    Accepts ``t.me/<username>/<post_id>`` and the private form
+    ``t.me/c/<internal_id>/<post_id>``; a trailing ``/s/`` segment is
+    tolerated in both forms.
+
+    Args:
+        raw: The link text supplied by the admin.
+
+    Returns:
+        ``(kind, channel_id_or_username, post_id)`` where kind is
+        ``"username"`` or ``"int"``, or None when the link does not match.
+    """
+    match = _POST_LINK_RE.fullmatch(raw.strip())
+    if not match:
+        return None
+    username, internal_id, post_id = match.groups()
+    if username:
+        return "username", username, int(post_id)
+    return "int", int(internal_id), int(post_id)
 
 
 async def handle_help(
@@ -400,6 +432,146 @@ async def handle_delete(
         )
 
 
+async def handle_save(
+    client: TelegramClient,
+    event: NewMessage.Event,
+    config: Config,
+    args: list[str],
+) -> None:
+    """Fetch a channel post by link and deliver it to Saved Messages.
+
+    Pull-model alternative to auto-download: the post content is fetched
+    on demand, so nothing touches the downloads archive and the expiring
+    media filter stays untouched.
+
+    Args:
+        client: The connected Telethon client.
+        event: The slash command event to respond to.
+        config: Resolved runtime configuration (unused but conventional).
+        args: Command arguments; exactly one t.me post link is expected.
+    """
+    if not is_admin(event, config.admin_id):
+        return
+    if not args:
+        await _respond(event, "<b>Usage:</b> <code>/save &lt;link&gt;</code>")
+        return
+    parsed = _parse_post_link(" ".join(args))
+    if parsed is None:
+        await _respond(
+            event,
+            "<b><u>Invalid link</u></b>\n"
+            "<i>Use a full post link: t.me/&lt;channel&gt;/&lt;post&gt;.</i>",
+        )
+        return
+    kind, channel, post_id = parsed
+    channel_label = channel if kind == "username" else f"c/{channel}"
+    try:
+        if kind == "username":
+            entity = await client.get_entity(str(channel))
+        else:
+            entity = await client.get_entity(PeerChannel(cast(int, channel)))
+    except (errors.ChannelPrivateError, errors.ChannelInvalidError, ValueError):
+        logger.warning(
+            "Save refused for admin %s: channel %s unavailable",
+            config.admin_id,
+            channel,
+        )
+        await _respond(
+            event,
+            "<b><u>Channel unavailable</u></b>\n"
+            "<i>Your account must be a member of the channel.</i>",
+        )
+        return
+
+    try:
+        # Runtime returns the custom Message even though telethon annotates
+        # the raw TL constructor type; cast for the ids=int single form.
+        message = cast(
+            "Message | None",
+            await with_floodwait_retry(
+                lambda: client.get_messages(entity, ids=post_id)
+            ),
+        )
+    except Exception:
+        logger.exception("Save fetch failed for admin %s", config.admin_id)
+        message = None
+    if message is None:
+        await _respond(
+            event,
+            "<b><u>Post not found</u></b>\n"
+            "<i>The post may be deleted or the id is out of range.</i>",
+        )
+        return
+    if type(message.media).__name__ == "MessageMediaPaidMedia":
+        await _respond(
+            event,
+            "<b><u>Paid content</u></b>\n<i>Stars-gated media is not supported.</i>",
+        )
+        return
+    if type(message.media).__name__ == "MessageMediaUnsupported":
+        await _respond(
+            event,
+            "<b><u>Content unavailable</u></b>\n<i>This media type cannot be re-sent.</i>",
+        )
+        return
+
+    source_label = escape(f"t.me/{channel_label}/{post_id}")
+    body = message.text or ""
+    if not message.media and body:
+        # parse_mode=None preserves the original characters exactly; the
+        # client-wide HTML mode would mangle angle brackets in user text.
+        await with_floodwait_retry(
+            lambda: client.send_message("me", body, parse_mode=None)
+        )
+        await _respond(event, f"<b>Saved</b> from <u>{source_label}</u>")
+        return
+    if not message.media:
+        await _respond(
+            event,
+            "<b><u>Content unavailable</u></b>\n<i>The message is empty or stripped.</i>",
+        )
+        return
+
+    with tempfile.TemporaryDirectory(prefix="tsdmd-save-") as tmp_dir:
+        try:
+            saved = await with_floodwait_retry(
+                lambda: message.download_media(file=str(Path(tmp_dir)))
+            )
+        except Exception as exc:
+            logger.error("Save download failed for admin %s: %s", config.admin_id, exc)
+            await _respond(
+                event,
+                "<b><u>Not saved</u></b>\n<i>Download could not be completed.</i>",
+            )
+            return
+        if not saved:
+            logger.error("Save download returned no path for admin %s", config.admin_id)
+            await _respond(
+                event,
+                "<b><u>Not saved</u></b>\n<i>Download could not be completed.</i>",
+            )
+            return
+        # Text on a media message is its caption; keep it verbatim.
+        caption = body
+        try:
+            await with_floodwait_retry(
+                lambda: client.send_file(
+                    "me",
+                    str(saved),
+                    caption=caption,
+                    parse_mode=None,
+                    force_document=False,
+                )
+            )
+            logger.info("Saved post %s for admin %s", source_label, config.admin_id)
+            await _respond(event, f"<b>Saved</b> from <u>{source_label}</u>")
+        except Exception as exc:
+            logger.error("Save send failed for admin %s: %s", config.admin_id, exc)
+            await _respond(
+                event, f"<b><u>Send failed</u></b>: <i>{escape(str(exc))}</i>"
+            )
+
+
 async def handle_all(
     client: TelegramClient,
     event: NewMessage.Event,
@@ -508,5 +680,6 @@ COMMANDS: dict[str, CommandHandler] = {
     "check": handle_check,
     "download": handle_download,
     "delete": handle_delete,
+    "save": handle_save,
     "zip": handle_zip,
 }
