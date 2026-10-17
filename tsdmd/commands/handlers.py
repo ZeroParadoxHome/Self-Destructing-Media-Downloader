@@ -153,12 +153,17 @@ _POST_LINK_RE = re.compile(
 )
 
 
+_ZWSP_RE = re.compile(r"[\u200b-\u200f\u2060\ufeff\s]")
+
+
 def _parse_post_link(raw: str) -> tuple[str, str | int, int] | None:
     """Parse a Telegram post link into a channel identity and post id.
 
     Accepts ``t.me/<username>/<post_id>`` and the private form
     ``t.me/c/<internal_id>/<post_id>``; a trailing ``/s/`` segment is
-    tolerated in both forms.
+    tolerated in both forms. Zero-width joiners/space characters that
+    mobile clients insert when copying are stripped before matching;
+    internal whitespace (line breaks, tabs, NBSP) is collapsed.
 
     Args:
         raw: The link text supplied by the admin.
@@ -167,7 +172,8 @@ def _parse_post_link(raw: str) -> tuple[str, str | int, int] | None:
         ``(kind, channel_id_or_username, post_id)`` where kind is
         ``"username"`` or ``"int"``, or None when the link does not match.
     """
-    match = _POST_LINK_RE.fullmatch(raw.strip())
+    cleaned = _ZWSP_RE.sub("", raw)
+    match = _POST_LINK_RE.fullmatch(cleaned)
     if not match:
         return None
     username, internal_id, post_id = match.groups()
@@ -457,6 +463,11 @@ async def handle_save(
         return
     parsed = _parse_post_link(" ".join(args))
     if parsed is None:
+        logger.warning(
+            "Save link parse failed for admin %s: args=%r",
+            config.admin_id,
+            [a.encode("unicode_escape").decode() for a in args],
+        )
         await _respond(
             event,
             "<b><u>Invalid link</u></b>\n"
