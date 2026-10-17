@@ -137,7 +137,7 @@ systemd/tsdmd.service    # user service unit
   for public channels. Private channels need the `t.me/c/<id>/<post>` form.
   Your account must be a member of the channel, otherwise Telegram refuses
   fetch at the entity-permission level and `/save` reports it cleanly.
-  Channels restricting content remain fetchable while you are a member.
+  Channels restricting content remain fetchable while you are still a member.
 - **`SessionPasswordNeededError` loop** — enter the 2FA *password*, not another
   login code, at the password prompt.
 - **Commands ignored / total silence** — `ADMIN_ID` doesn't match the logged-in
